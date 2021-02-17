@@ -11,7 +11,7 @@ using namespace std;
 // CUDA kernel. Each thread takes care of one element of c
 
 
-__global__ void vecAdd(double* a, double* c, int width, int height) {
+__global__ void maxPerRow(double* a, double* c, int width, int height) {
 
 	int id = threadIdx.x;
 	int k = 0;
@@ -72,14 +72,14 @@ int main(int argc, char* argv[])
 	// Number of thread blocks in grid
 	dim3 gridSize(1, 1);
 
-	vecAdd << <gridSize, blockSize >> > (d_a, d_c, width, height);
+	maxPerRow << <gridSize, blockSize >> > (d_a, d_c, width, height);
 
 	// Copy array back to host
 	cudaMemcpy(h_c, d_c, height * sizeof(double), cudaMemcpyDeviceToHost);
 
 	// Sum up vector c and print result divided by n, this should equal 1 within error
 
-	for (int i = 0; i < height; i++) {	
+	for (int i = 0; i < height; i++) {
 		printf("%f  ", h_c[i]);
 		printf("\n");
 	}
@@ -94,4 +94,4 @@ int main(int argc, char* argv[])
 	free(h_c);
 
 	return 0;
-}  
+}

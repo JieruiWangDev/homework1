@@ -7,40 +7,19 @@
 
 using namespace std;
 
+const int M = 1024;
+const int N = 1024;
+
+
 // CUDA kernel. Each thread takes care of one element of c
-__global__ void vecAdd(double* a, double* b, double* c, int width, int height)
+__global__ void matAdd(double a[M][N], double b[M][N], double c[M][N])
 {
 	// Get our global thread ID
-	int id = blockIdx.x * blockDim.x + threadIdx.x;
-	// Make sure we do not go out of bounds
-	if (id < width * height) {
-		c[id] = a[id] + b[id];
-	}
-
-}
-
-__global__ void vecAddOneRow(double* a, double* b, double* c, int width) {
-
-	int id = threadIdx.x;
-	int k = 0;
-	double value;
-	// Make sure we do not go out of bounds
-	for (k = 0; k < width; k++) {
-		value = a[id * width + k] + b[id * width + k];
-		c[id * width + k] = value;
-	}
-
-}
-
-__global__ void vecAddOneCol(double* a, double* b, double* c, int width) {
-
-	int id = threadIdx.x;
-	int k = 0;
-	double value;
-	// Make sure we do not go out of bounds
-	for (k = 0; k < width; k++) {
-		value = a[k * width + id] + b[k * width + id];
-		c[k * width + id] = value;
+	int i = threadIdx.x + blockIdx.x * blockDim.x;
+	int j = threadIdx.y + blockIdx.y * blockDim.y;
+	if (i < M && j < N)
+	{
+		c[i][j] = a[i][j] + b[i][j];
 	}
 
 }
@@ -50,66 +29,79 @@ int main(int argc, char* argv[])
 {
 	// Size of vectors
 
-	int width = 1024;
-	int height = 1024;
-	int n = width * height;
+
 	// Host input vectors
-	double* h_a;
-	double* h_b;
+	double(*h_a)[N] = new double[M][N];
+	double(*h_b)[N] = new double[M][N];
+
 	//Host output vector
-	double* h_c;
+	double(*h_c)[N] = new double[M][N];
 
 	// Device input vectors
-	double* d_a;
-	double* d_b;
+	double(*d_a)[N];
+	double(*d_b)[N];
+
 	//Device output vector
-	double* d_c;
+	double(*d_c)[N];
 
 	// Size, in bytes, of each vector
-	size_t bytes = n * sizeof(double);
+	size_t bytes = sizeof(double) * M * N;
 
 	// Allocate memory for each vector on host
-	h_a = (double*)malloc(bytes);
-	h_b = (double*)malloc(bytes);
-	h_c = (double*)malloc(bytes);
+	//h_a = (double*)malloc(bytes);
+	//h_b = (double*)malloc(bytes);
+	//h_c = (double*)malloc(bytes);
 
 	// Allocate memory for each vector on GPU
-	cudaMalloc(&d_a, bytes);
-	cudaMalloc(&d_b, bytes);
-	cudaMalloc(&d_c, bytes);
+	cudaMalloc((void**)&d_a, bytes);
+	cudaMalloc((void**)&d_b, bytes);
+	cudaMalloc((void**)&d_c, bytes);
 
-	int i, j;
+	int i;
 	// Initialize vectors on host
-	for (i = 0; i < n; i++) {
-		int index = i;
-		h_a[index] = sin(index) * sin(index);
-		h_b[index] = cos(index) * cos(index);
-
+	for (int i = 0; i < M; i++) {
+		for (int j = 0; j < N; j++) {
+			h_a[i][j] = sin(i+j) * sin(i+j);
+			h_b[i][j] = cos(i+j) * cos(i+j);
+		}
 	}
 
+
+	for (int j = 0; j < 5; j++) {
+		for (i = 0; i < 5; i++) {
+			printf("%f  ", h_a[i][j]);
+		}
+		printf("\n");
+	}
+	printf("\n\n\n\n");
+	for (int j = 0; j < 5; j++) {
+		for (i = 0; i < 5; i++) {
+			printf("%f  ", h_b[i][j]);
+		}
+		printf("\n");
+	}
+
+	printf("\n\n\n\n\n");
 	// Copy host vectors to device
 	cudaMemcpy(d_a, h_a, bytes, cudaMemcpyHostToDevice);
 	cudaMemcpy(d_b, h_b, bytes, cudaMemcpyHostToDevice);
 
-	int blockSize, gridSize;
-
 	// Number of threads in each thread block
-	blockSize = 1024;
+	dim3 blockSize(32, 32);
 
 	// Number of thread blocks in grid
-	gridSize = (int)ceil((float)n / blockSize);
+	dim3 gridSize(1, 1);
 
-	vecAdd << <gridSize, blockSize >> > (d_a, d_b, d_c, width, height);
+	matAdd << <gridSize, blockSize >> > (d_a, d_b, d_c);
 
 	// Copy array back to host
 	cudaMemcpy(h_c, d_c, bytes, cudaMemcpyDeviceToHost);
 
 	// Sum up vector c and print result divided by n, this should equal 1 within error
-	double sum = 0;
 
 	for (int j = 0; j < 5; j++) {
 		for (i = 0; i < 5; i++) {
-			printf("%f  ", h_c[j * width + i]);
+			printf("%f  ", h_c[i][j]);
 		}
 		printf("\n");
 	}

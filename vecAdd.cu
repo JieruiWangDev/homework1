@@ -1,5 +1,4 @@
-﻿
-#include "cuda_runtime.h"
+﻿#include "cuda_runtime.h"
 #include "device_launch_parameters.h"
 
 #include <stdio.h>
@@ -20,30 +19,35 @@ __global__ void vecAdd(double* a, double* b, double* c, int width)
 
 }
 
-__global__ void vecAddOneRow(double* a, double* b, double* c, int width) {
+__global__ void vecAddByRow(double* a, double* b, double* c, int width) {
 
 	int id = threadIdx.x;
 	int k = 0;
 	double value;
 	// Make sure we do not go out of bounds
-	for (k = 0; k < width ; k++) {
-		value = a[id * width + k] + b[id * width + k];
-		c[id * width + k] = value;
+	if (id < width) {
+		for (k = 0; k < width; k++) {
+			value = a[id * width + k] + b[id * width + k];
+			c[id * width + k] = value;
+		}
+
 	}
+
 
 }
 
-__global__ void vecAddOneCol(double* a, double* b, double* c, int width) {
+__global__ void vecAddByCol(double* a, double* b, double* c, int col) {
 
 	int id = threadIdx.x;
 	int k = 0;
 	double value;
 	// Make sure we do not go out of bounds
-	for (k = 0; k < width; k++) {
-		value = a[k* width + id] + b[k * width + id];
-		c[k * width + id] = value;
+	if (id < col) {
+		for (k = 0; k < col; k++) {
+			value = a[k * col + id] + b[k * col + id];
+			c[k * col + id] = value;
+		}
 	}
-
 }
 
 
@@ -85,6 +89,22 @@ int main(int argc, char* argv[])
 		h_b[i] = cos(i) * cos(i);
 	}
 
+
+	for (int j = 0; j < 5; j++) {
+		for (i = 0; i < 5; i++) {
+			printf("%f  ", h_a[j * width + i]);
+		}
+		printf("\n");
+	}
+	printf("\n\n\n\n");
+	for (int j = 0; j < 5; j++) {
+		for (i = 0; i < 5; i++) {
+			printf("%f  ", h_b[j * width + i]);
+		}
+		printf("\n");
+	}
+
+	printf("\n\n\n\n");
 	// Copy host vectors to device
 	cudaMemcpy(d_a, h_a, bytes, cudaMemcpyHostToDevice);
 	cudaMemcpy(d_b, h_b, bytes, cudaMemcpyHostToDevice);
@@ -96,8 +116,8 @@ int main(int argc, char* argv[])
 
 	// Number of thread blocks in grid
 	gridSize = (int)ceil((float)n / blockSize);
-	
-	vecAdd << <gridSize, blockSize >> > (d_a, d_b, d_c, width);
+
+	vecAddByCol << <gridSize, blockSize >> > (d_a, d_b, d_c, width);
 
 	// Copy array back to host
 	cudaMemcpy(h_c, d_c, bytes, cudaMemcpyDeviceToHost);
@@ -107,21 +127,22 @@ int main(int argc, char* argv[])
 
 	for (int j = 0; j < 5; j++) {
 		for (i = 0; i < 5; i++) {
-			printf("%f  ", h_c[j*width+i]);
+			printf("%f  ", h_c[j * width + i]);
 		}
 		printf("\n");
 	}
 
 
-		// Release device memory
-	    cudaFree(d_a);
-		cudaFree(d_b);
-		cudaFree(d_c);
+	// Release device memory
+	cudaFree(d_a);
+	cudaFree(d_b);
+	cudaFree(d_c);
 
-		// Release host memory
-		free(h_a);
-		free(h_b);
-		free(h_c);
+	// Release host memory
+	free(h_a);
+	free(h_b);
+	free(h_c);
 
-		return 0;
-	}
+	return 0;
+}
+
